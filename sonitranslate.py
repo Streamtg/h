@@ -3,8 +3,8 @@
 """
 SoniTranslate Pro - Doblaje Profesional con IA
 Python 3.7+ Compatible | CentOS 8 | Sin Root | Conda
-TODO EN UN SOLO ARCHIVO - VERSIÓN FINAL CORREGIDA
-Auto-renovación de enlaces Gradio cada 72 horas
+TODO EN UN SOLO ARCHIVO - VERSIÓN FINAL OPTIMIZADA
+Resuelve problemas de soundfile y ffmpeg
 """
 
 import os
@@ -21,8 +21,41 @@ from typing import Optional, List, Dict, Tuple
 import traceback
 
 # ============================================================
-# INSTALACIÓN AUTOMÁTICA DE DEPENDENCIAS - MEJORADO
+# INSTALACIÓN AUTOMÁTICA DE DEPENDENCIAS - OPTIMIZADO
 # ============================================================
+
+def install_system_dependencies():
+    """Instala dependencias del sistema con Conda"""
+    print("🔧 Instalando dependencias del sistema con Conda...\n")
+    
+    system_packages = [
+        "ffmpeg",
+        "libsndfile",
+    ]
+    
+    for package in system_packages:
+        try:
+            print("  📦 Verificando {}...".format(package))
+            result = subprocess.run(
+                ["conda", "list", package],
+                capture_output=True,
+                text=True
+            )
+            
+            if package not in result.stdout:
+                print("  📦 Instalando {} con conda...".format(package))
+                subprocess.check_call(
+                    ["conda", "install", "-c", "conda-forge", package, "-y"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print("  ✅ {} instalado".format(package))
+            else:
+                print("  ✅ {} (ya instalado)".format(package))
+        except Exception as e:
+            print("  ⚠️ Error con {}: {}".format(package, e))
+    
+    print()
 
 def install_package(package_name, pip_name=None, max_retries=2):
     """Instala un paquete con reintentos"""
@@ -32,7 +65,7 @@ def install_package(package_name, pip_name=None, max_retries=2):
     for attempt in range(max_retries):
         try:
             subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", pip_name, "--upgrade"],
+                [sys.executable, "-m", "pip", "install", pip_name, "--upgrade", "--no-cache-dir"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
@@ -45,7 +78,7 @@ def install_package(package_name, pip_name=None, max_retries=2):
 
 def install_dependencies():
     """Instala dependencias automáticamente - Python 3.7 compatible"""
-    print("🔧 Verificando e instalando dependencias...\n")
+    print("🔧 Verificando e instalando dependencias de Python...\n")
     
     # Actualizar pip primero
     print("  📦 Actualizando pip...")
@@ -56,30 +89,43 @@ def install_dependencies():
     )
     
     packages = [
-        ('gradio', 'gradio'),  # Versión más reciente compatible
+        ('gradio', 'gradio'),
         ('edge_tts', 'edge-tts'),
         ('pydub', 'pydub'),
         ('deep_translator', 'deep-translator'),
         ('numpy', 'numpy'),
-        ('soundfile', 'soundfile'),
         ('scipy', 'scipy'),
         ('librosa', 'librosa'),
-        ('ffmpeg_python', 'ffmpeg-python'),
     ]
     
-    failed_packages = []
+    # soundfile se instala separado porque necesita libsndfile del sistema
+    soundfile_installed = False
     
     for module_name, pip_name in packages:
         try:
             __import__(module_name)
             print("  ✅ {} (ya instalado)".format(module_name))
-        except ImportError:
+        except (ImportError, OSError) as e:
             print("  📦 Instalando {}...".format(module_name))
             if install_package(module_name, pip_name):
                 print("  ✅ {} instalado".format(module_name))
             else:
-                print("  ❌ Error instalando {}".format(module_name))
-                failed_packages.append(module_name)
+                print("  ⚠️ Error instalando {}".format(module_name))
+    
+    # Intentar instalar soundfile después de tener libsndfile
+    try:
+        import soundfile
+        print("  ✅ soundfile (ya instalado)")
+        soundfile_installed = True
+    except (ImportError, OSError):
+        print("  📦 Instalando soundfile...")
+        if install_package('soundfile', 'soundfile'):
+            try:
+                import soundfile
+                print("  ✅ soundfile instalado")
+                soundfile_installed = True
+            except (ImportError, OSError):
+                print("  ⚠️ soundfile instalado pero libsndfile no disponible")
     
     # Whisper (opcional)
     try:
@@ -90,36 +136,41 @@ def install_dependencies():
         if install_package('whisper', 'openai-whisper'):
             print("  ✅ whisper instalado")
         else:
-            print("  ⚠️ Whisper no instalado (opcional - transcripción automática no disponible)")
-    
-    if failed_packages:
-        print("\n⚠️ Paquetes no instalados: {}".format(", ".join(failed_packages)))
-        if 'gradio' in failed_packages:
-            print("\n❌ ERROR CRÍTICO: Gradio no se pudo instalar.")
-            print("Intenta manualmente:")
-            print("  pip install gradio")
-            sys.exit(1)
+            print("  ⚠️ Whisper no instalado (opcional)")
     
     print("\n✅ Verificación de dependencias completada\n")
+    return soundfile_installed
 
-# Instalar al inicio
-install_dependencies()
+# Instalar dependencias del sistema primero
+install_system_dependencies()
+
+# Luego las de Python
+SOUNDFILE_AVAILABLE = install_dependencies()
 
 # Imports después de instalación
 try:
     import gradio as gr
-    print("✅ Gradio importado correctamente\n")
+    print("✅ Gradio importado correctamente")
 except ImportError as e:
     print("❌ Error importando Gradio: {}".format(e))
-    print("\nIntenta instalar manualmente:")
-    print("  pip install gradio --upgrade")
     sys.exit(1)
 
 import edge_tts
 from pydub import AudioSegment, effects
 import numpy as np
-import soundfile as sf
+
+# Importar soundfile solo si está disponible
+if SOUNDFILE_AVAILABLE:
+    try:
+        import soundfile as sf
+        print("✅ Soundfile importado correctamente")
+    except:
+        SOUNDFILE_AVAILABLE = False
+        print("⚠️ Soundfile no disponible, usando alternativas")
+
 from deep_translator import GoogleTranslator
+
+print()
 
 # ============================================================
 # CONFIGURACIÓN GLOBAL
@@ -855,16 +906,11 @@ if __name__ == "__main__":
     
     # Verificar ffmpeg
     try:
-        subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
-        print("✅ FFmpeg encontrado")
+        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, check=True)
+        print("✅ FFmpeg OK")
     except:
-        print("⚠️ FFmpeg no encontrado. Instalando...")
-        try:
-            subprocess.run(["conda", "install", "-c", "conda-forge", "ffmpeg", "-y"], check=True)
-        except:
-            print("❌ No se pudo instalar FFmpeg. Instálalo manualmente:")
-            print("   conda install -c conda-forge ffmpeg")
-            sys.exit(1)
+        print("❌ FFmpeg no encontrado")
+        sys.exit(1)
     
     print("\n🚀 Iniciando servidor Gradio...")
     print("📡 Generando enlace público...")
@@ -872,10 +918,6 @@ if __name__ == "__main__":
     print("=" * 70)
     
     app = create_interface()
-    
-    # Configurar para mostrar el enlace claramente
-    import warnings
-    warnings.filterwarnings("ignore")
     
     print("\n")
     print("🌐 ENLACES DE ACCESO:")
@@ -887,5 +929,4 @@ if __name__ == "__main__":
         share=True,
         show_error=True,
         quiet=False,
-        debug=False,
     )
