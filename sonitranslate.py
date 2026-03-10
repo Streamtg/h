@@ -3,7 +3,7 @@
 """
 SoniTranslate Pro - Doblaje Profesional con IA
 Python 3.7+ Compatible | CentOS 8 | Sin Root | Conda | Gradio Share
-TODO EN UN SOLO ARCHIVO
+TODO EN UN SOLO ARCHIVO - VERSIÓN CORREGIDA
 """
 
 import os
@@ -17,43 +17,60 @@ import re
 import asyncio
 from pathlib import Path
 from typing import Optional, List, Dict, Tuple
-from dataclasses import dataclass, field
 import traceback
 
 # ============================================================
-# INSTALACIÓN AUTOMÁTICA DE DEPENDENCIAS
+# INSTALACIÓN AUTOMÁTICA DE DEPENDENCIAS - CORREGIDO
 # ============================================================
 
 def install_dependencies():
-    """Instala dependencias automáticamente"""
+    """Instala dependencias automáticamente - Python 3.7 compatible"""
     print("🔧 Verificando e instalando dependencias...")
     
-    packages = {
-        'gradio': '3.50.2',  # Compatible con Python 3.7
-        'edge-tts': 'edge-tts',
-        'pydub': 'pydub',
-        'deep-translator': 'deep-translator',
-        'numpy': 'numpy<1.22',  # Compatible con Python 3.7
-        'soundfile': 'soundfile',
-        'librosa': 'librosa',
-        'scipy': 'scipy<1.8',
-    }
+    packages = [
+        ('gradio', 'gradio==3.50.2'),
+        ('edge_tts', 'edge-tts'),
+        ('pydub', 'pydub'),
+        ('deep_translator', 'deep-translator'),
+        ('numpy', 'numpy<1.22'),
+        ('soundfile', 'soundfile'),
+        ('scipy', 'scipy<1.8'),
+        ('librosa', 'librosa==0.9.2'),
+    ]
     
-    for package, install_name in packages.items():
+    for module_name, pip_name in packages:
         try:
-            __import__(package.replace('-', '_'))
+            __import__(module_name)
+            print(f"  ✅ {module_name}")
         except ImportError:
-            print(f"📦 Instalando {package}...")
-            subprocess.check_call([sys.executable, "-m", "pip", "install", install_name, "-q"])
+            print(f"  📦 Instalando {module_name}...")
+            try:
+                subprocess.check_call(
+                    [sys.executable, "-m", "pip", "install", pip_name],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL
+                )
+                print(f"  ✅ {module_name} instalado")
+            except subprocess.CalledProcessError as e:
+                print(f"  ⚠️ Error instalando {module_name}: {e}")
     
     # Whisper (opcional)
     try:
         import whisper
+        print("  ✅ whisper")
     except ImportError:
-        print("📦 Instalando OpenAI Whisper...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", "openai-whisper", "-q"])
+        print("  📦 Instalando OpenAI Whisper...")
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", "openai-whisper"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            print("  ✅ whisper instalado")
+        except:
+            print("  ⚠️ Whisper no instalado (opcional)")
     
-    print("✅ Dependencias verificadas")
+    print("✅ Verificación de dependencias completada\n")
 
 # Instalar al inicio
 install_dependencies()
@@ -75,48 +92,31 @@ TEMP_DIR = os.path.join(BASE_DIR, "temp")
 OUTPUT_DIR = os.path.join(BASE_DIR, "output")
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 
-os.makedirs(TEMP_DIR, exist_ok=True)
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(MODELS_DIR, exist_ok=True)
+for directory in [TEMP_DIR, OUTPUT_DIR, MODELS_DIR]:
+    os.makedirs(directory, exist_ok=True)
 
 # ============================================================
-# CATÁLOGO DE VOCES NEURALES
+# CATÁLOGO DE VOCES NEURALES (COMPACTO)
 # ============================================================
 
 VOICES_CATALOG = {
-    # ESPAÑOL
+    # ESPAÑOL - Principales
     "es-ES-AlvaroNeural": {"name": "Álvaro (España)", "gender": "male", "lang": "es"},
     "es-ES-ElviraNeural": {"name": "Elvira (España)", "gender": "female", "lang": "es"},
-    "es-ES-AbrilNeural": {"name": "Abril (España)", "gender": "female", "lang": "es"},
-    "es-ES-ArnauNeural": {"name": "Arnau (España)", "gender": "male", "lang": "es"},
     "es-ES-DarioNeural": {"name": "Darío (España)", "gender": "male", "lang": "es"},
     "es-ES-EliasNeural": {"name": "Elías (España)", "gender": "male", "lang": "es"},
-    "es-ES-EstrellaNeural": {"name": "Estrella (España)", "gender": "female", "lang": "es"},
     "es-ES-IreneNeural": {"name": "Irene (España)", "gender": "female", "lang": "es"},
     "es-ES-LaiaNeural": {"name": "Laia (España)", "gender": "female", "lang": "es"},
-    "es-ES-LiaNeural": {"name": "Lía (España)", "gender": "female", "lang": "es"},
-    "es-ES-NilNeural": {"name": "Nil (España)", "gender": "male", "lang": "es"},
-    "es-ES-SaulNeural": {"name": "Saúl (España)", "gender": "male", "lang": "es"},
-    "es-ES-TeoNeural": {"name": "Teo (España)", "gender": "male", "lang": "es"},
     "es-ES-TrianaNeural": {"name": "Triana (España)", "gender": "female", "lang": "es"},
-    "es-ES-VeraNeural": {"name": "Vera (España)", "gender": "female", "lang": "es"},
-    "es-ES-XimenaNeural": {"name": "Ximena (España)", "gender": "female", "lang": "es"},
     
     "es-MX-DaliaNeural": {"name": "Dalia (México)", "gender": "female", "lang": "es"},
     "es-MX-JorgeNeural": {"name": "Jorge (México)", "gender": "male", "lang": "es"},
-    "es-MX-BeatrizNeural": {"name": "Beatriz (México)", "gender": "female", "lang": "es"},
     "es-MX-CandelaNeural": {"name": "Candela (México)", "gender": "female", "lang": "es"},
-    "es-MX-CarlotaNeural": {"name": "Carlota (México)", "gender": "female", "lang": "es"},
-    "es-MX-CecilioNeural": {"name": "Cecilio (México)", "gender": "male", "lang": "es"},
     "es-MX-GerardoNeural": {"name": "Gerardo (México)", "gender": "male", "lang": "es"},
-    "es-MX-LarissaNeural": {"name": "Larissa (México)", "gender": "female", "lang": "es"},
     "es-MX-LibertoNeural": {"name": "Liberto (México)", "gender": "male", "lang": "es"},
-    "es-MX-LucianoNeural": {"name": "Luciano (México)", "gender": "male", "lang": "es"},
-    "es-MX-MarinaNeural": {"name": "Marina (México)", "gender": "female", "lang": "es"},
     "es-MX-NuriaNeural": {"name": "Nuria (México)", "gender": "female", "lang": "es"},
     "es-MX-PelayoNeural": {"name": "Pelayo (México)", "gender": "male", "lang": "es"},
     "es-MX-RenataNeural": {"name": "Renata (México)", "gender": "female", "lang": "es"},
-    "es-MX-YagoNeural": {"name": "Yago (México)", "gender": "male", "lang": "es"},
     
     "es-AR-ElenaNeural": {"name": "Elena (Argentina)", "gender": "female", "lang": "es"},
     "es-AR-TomasNeural": {"name": "Tomás (Argentina)", "gender": "male", "lang": "es"},
@@ -124,60 +124,30 @@ VOICES_CATALOG = {
     "es-CO-SalomeNeural": {"name": "Salomé (Colombia)", "gender": "female", "lang": "es"},
     "es-CL-CatalinaNeural": {"name": "Catalina (Chile)", "gender": "female", "lang": "es"},
     "es-CL-LorenzoNeural": {"name": "Lorenzo (Chile)", "gender": "male", "lang": "es"},
-    "es-PE-AlexNeural": {"name": "Alex (Perú)", "gender": "male", "lang": "es"},
-    "es-PE-CamilaNeural": {"name": "Camila (Perú)", "gender": "female", "lang": "es"},
     "es-US-AlonsoNeural": {"name": "Alonso (US)", "gender": "male", "lang": "es"},
     "es-US-PalomaNeural": {"name": "Paloma (US)", "gender": "female", "lang": "es"},
     
-    # INGLÉS
+    # INGLÉS - Principales
     "en-US-AriaNeural": {"name": "Aria (US)", "gender": "female", "lang": "en"},
     "en-US-GuyNeural": {"name": "Guy (US)", "gender": "male", "lang": "en"},
     "en-US-JennyNeural": {"name": "Jenny (US)", "gender": "female", "lang": "en"},
     "en-US-DavisNeural": {"name": "Davis (US)", "gender": "male", "lang": "en"},
-    "en-US-AmberNeural": {"name": "Amber (US)", "gender": "female", "lang": "en"},
-    "en-US-AnaNeural": {"name": "Ana (US)", "gender": "female", "lang": "en"},
     "en-US-AndrewNeural": {"name": "Andrew (US)", "gender": "male", "lang": "en"},
-    "en-US-BrandonNeural": {"name": "Brandon (US)", "gender": "male", "lang": "en"},
     "en-US-BrianNeural": {"name": "Brian (US)", "gender": "male", "lang": "en"},
-    "en-US-ChristopherNeural": {"name": "Christopher (US)", "gender": "male", "lang": "en"},
-    "en-US-CoraNeural": {"name": "Cora (US)", "gender": "female", "lang": "en"},
-    "en-US-ElizabethNeural": {"name": "Elizabeth (US)", "gender": "female", "lang": "en"},
-    "en-US-EricNeural": {"name": "Eric (US)", "gender": "male", "lang": "en"},
     "en-US-EmmaNeural": {"name": "Emma (US)", "gender": "female", "lang": "en"},
-    "en-US-JacobNeural": {"name": "Jacob (US)", "gender": "male", "lang": "en"},
-    "en-US-JaneNeural": {"name": "Jane (US)", "gender": "female", "lang": "en"},
-    "en-US-JasonNeural": {"name": "Jason (US)", "gender": "male", "lang": "en"},
-    "en-US-MichelleNeural": {"name": "Michelle (US)", "gender": "female", "lang": "en"},
-    "en-US-MonicaNeural": {"name": "Monica (US)", "gender": "female", "lang": "en"},
-    "en-US-NancyNeural": {"name": "Nancy (US)", "gender": "female", "lang": "en"},
-    "en-US-RogerNeural": {"name": "Roger (US)", "gender": "male", "lang": "en"},
-    "en-US-SaraNeural": {"name": "Sara (US)", "gender": "female", "lang": "en"},
-    "en-US-SteffanNeural": {"name": "Steffan (US)", "gender": "male", "lang": "en"},
     "en-US-TonyNeural": {"name": "Tony (US)", "gender": "male", "lang": "en"},
+    "en-US-SaraNeural": {"name": "Sara (US)", "gender": "female", "lang": "en"},
+    "en-US-JasonNeural": {"name": "Jason (US)", "gender": "male", "lang": "en"},
     
-    "en-GB-SoniaNeural": {"name": "Sonia (UK)", "gender": "female", "lang": "en"},
     "en-GB-RyanNeural": {"name": "Ryan (UK)", "gender": "male", "lang": "en"},
+    "en-GB-SoniaNeural": {"name": "Sonia (UK)", "gender": "female", "lang": "en"},
     "en-GB-LibbyNeural": {"name": "Libby (UK)", "gender": "female", "lang": "en"},
-    "en-GB-AbbiNeural": {"name": "Abbi (UK)", "gender": "female", "lang": "en"},
-    "en-GB-AlfieNeural": {"name": "Alfie (UK)", "gender": "male", "lang": "en"},
-    "en-GB-BellaNeural": {"name": "Bella (UK)", "gender": "female", "lang": "en"},
-    "en-GB-ElliotNeural": {"name": "Elliot (UK)", "gender": "male", "lang": "en"},
-    "en-GB-EthanNeural": {"name": "Ethan (UK)", "gender": "male", "lang": "en"},
-    "en-GB-HollieNeural": {"name": "Hollie (UK)", "gender": "female", "lang": "en"},
-    "en-GB-MaisieNeural": {"name": "Maisie (UK)", "gender": "female", "lang": "en"},
-    "en-GB-NoahNeural": {"name": "Noah (UK)", "gender": "male", "lang": "en"},
-    "en-GB-OliverNeural": {"name": "Oliver (UK)", "gender": "male", "lang": "en"},
-    "en-GB-OliviaNeural": {"name": "Olivia (UK)", "gender": "female", "lang": "en"},
     "en-GB-ThomasNeural": {"name": "Thomas (UK)", "gender": "male", "lang": "en"},
     
     "en-AU-NatashaNeural": {"name": "Natasha (Australia)", "gender": "female", "lang": "en"},
     "en-AU-WilliamNeural": {"name": "William (Australia)", "gender": "male", "lang": "en"},
     "en-CA-ClaraNeural": {"name": "Clara (Canada)", "gender": "female", "lang": "en"},
     "en-CA-LiamNeural": {"name": "Liam (Canada)", "gender": "male", "lang": "en"},
-    "en-IN-NeerjaNeural": {"name": "Neerja (India)", "gender": "female", "lang": "en"},
-    "en-IN-PrabhatNeural": {"name": "Prabhat (India)", "gender": "male", "lang": "en"},
-    "en-IE-ConnorNeural": {"name": "Connor (Ireland)", "gender": "male", "lang": "en"},
-    "en-IE-EmilyNeural": {"name": "Emily (Ireland)", "gender": "female", "lang": "en"},
 }
 
 # ============================================================
@@ -220,7 +190,7 @@ class NeuralVoiceManager:
         for voice_id, info in VOICES_CATALOG.items():
             if info["lang"] == lang_key:
                 gender_icon = "👨" if info["gender"] == "male" else "👩"
-                display = f"{gender_icon} {info['name']}"
+                display = "{} {}".format(gender_icon, info['name'])
                 voices.append((display, voice_id))
         
         return sorted(voices, key=lambda x: x[0])
@@ -257,12 +227,14 @@ class AudioProcessor:
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         if result.returncode != 0:
-            raise RuntimeError(f"Error extrayendo audio: {result.stderr}")
+            raise RuntimeError("Error extrayendo audio: {}".format(result.stderr))
         
         return output_path
     
     def separate_vocals_simple(self, audio_path, output_dir):
         """Separación simple de voz (fallback sin Demucs)"""
+        os.makedirs(output_dir, exist_ok=True)
+        
         audio = AudioSegment.from_file(audio_path)
         
         if audio.channels == 2:
@@ -312,12 +284,12 @@ class AudioProcessor:
             shutil.copy(audio_path, output_path)
             return output_path
         
-        speed_factor = current_duration / target_duration_ms
+        speed_factor = current_duration / float(target_duration_ms)
         speed_factor = max(0.5, min(2.0, speed_factor))
         
         cmd = [
             "ffmpeg", "-y", "-i", audio_path,
-            "-filter:a", f"atempo={speed_factor}",
+            "-filter:a", "atempo={}".format(speed_factor),
             "-acodec", "pcm_s16le", output_path
         ]
         
@@ -425,7 +397,7 @@ class TextTranslator:
             return result if result else text
             
         except Exception as e:
-            print(f"⚠️ Error de traducción: {e}")
+            print("⚠️ Error de traducción: {}".format(e))
             return text
 
 # ============================================================
@@ -441,7 +413,7 @@ class VideoProcessor:
         """Reemplaza audio en video"""
         if output_path is None:
             base = Path(video_path).stem
-            output_path = os.path.join(self.output_dir, f"{base}_dubbed.mp4")
+            output_path = os.path.join(self.output_dir, "{}_dubbed.mp4".format(base))
         
         quality_settings = {
             "low": ["-crf", "28"],
@@ -457,7 +429,9 @@ class VideoProcessor:
             "-i", video_path,
             "-i", audio_path,
             "-c:v", "libx264",
-            *q_settings,
+        ]
+        cmd.extend(q_settings)
+        cmd.extend([
             "-preset", "fast",
             "-map", "0:v:0",
             "-map", "1:a:0",
@@ -465,12 +439,12 @@ class VideoProcessor:
             "-b:a", "192k",
             "-shortest",
             output_path
-        ]
+        ])
         
         result = subprocess.run(cmd, capture_output=True, text=True)
         
         if result.returncode != 0:
-            raise RuntimeError(f"Error procesando video: {result.stderr}")
+            raise RuntimeError("Error procesando video: {}".format(result.stderr))
         
         return output_path
 
@@ -483,7 +457,10 @@ def transcribe_audio(audio_path, language="auto"):
     try:
         import whisper
         
+        print("  🎤 Cargando modelo Whisper...")
         model = whisper.load_model("base")
+        
+        print("  🎤 Transcribiendo...")
         result = model.transcribe(audio_path, language=None if language == "auto" else language)
         
         segments = []
@@ -499,7 +476,7 @@ def transcribe_audio(audio_path, language="auto"):
         return segments, result.get("language", language)
     
     except Exception as e:
-        print(f"⚠️ Error en transcripción: {e}")
+        print("⚠️ Error en transcripción: {}".format(e))
         return [], language
 
 # ============================================================
@@ -528,7 +505,7 @@ def process_dubbing(
     
     try:
         timestamp = int(time.time())
-        work_dir = os.path.join(TEMP_DIR, f"job_{timestamp}")
+        work_dir = os.path.join(TEMP_DIR, "job_{}".format(timestamp))
         os.makedirs(work_dir, exist_ok=True)
         
         log_messages = []
@@ -563,22 +540,25 @@ def process_dubbing(
         log("🎙️ Paso 3/7: Transcribiendo audio...")
         src_lang = source_language if source_language != "auto" else "auto"
         segments, detected_language = transcribe_audio(vocals_path, src_lang)
-        log(f"✅ Transcripción: {len(segments)} segmentos, idioma: {detected_language}")
+        log("✅ Transcripción: {} segmentos, idioma: {}".format(len(segments), detected_language))
         
         # PASO 4: Traducir
-        log(f"🌍 Paso 4/7: Traduciendo...")
+        log("🌍 Paso 4/7: Traduciendo...")
         tgt = "en" if target_language.lower() in ["en", "english", "inglés"] else "es"
         
         translated_segments = []
         for segment in segments:
             translated_text = translator.translate(segment["text"], detected_language, tgt)
             translated_segments.append({
-                **segment,
+                "start": segment["start"],
+                "end": segment["end"],
+                "start_ms": segment["start_ms"],
+                "end_ms": segment["end_ms"],
                 "original_text": segment["text"],
                 "text": translated_text,
             })
         
-        log(f"✅ Traducción completada: {len(translated_segments)} segmentos")
+        log("✅ Traducción completada: {} segmentos".format(len(translated_segments)))
         
         # PASO 5: Sintetizar Voz
         log("🗣️ Paso 5/7: Generando voz doblada...")
@@ -588,10 +568,10 @@ def process_dubbing(
         
         final_rate = style["rate"] + rhythm_preset["modifier"]
         final_rate = max(-50, min(50, final_rate))
-        rate_str = f"{'+' if final_rate >= 0 else ''}{final_rate}%"
+        rate_str = "{:+d}%".format(final_rate)
         
-        pitch_str = f"{'+' if custom_pitch >= 0 else ''}{custom_pitch}Hz"
-        volume_str = f"{'+' if custom_volume >= 0 else ''}{custom_volume}%"
+        pitch_str = "{:+d}Hz".format(custom_pitch)
+        volume_str = "{:+d}%".format(custom_volume)
         
         voice_segments = []
         
@@ -600,7 +580,7 @@ def process_dubbing(
             if not text.strip():
                 continue
             
-            seg_output = os.path.join(work_dir, f"tts_segment_{i:04d}.wav")
+            seg_output = os.path.join(work_dir, "tts_segment_{:04d}.wav".format(i))
             
             voice_manager.synthesize_sync(
                 text=text,
@@ -612,7 +592,7 @@ def process_dubbing(
             )
             
             target_duration = segment["end_ms"] - segment["start_ms"]
-            adjusted_path = os.path.join(work_dir, f"tts_adjusted_{i:04d}.wav")
+            adjusted_path = os.path.join(work_dir, "tts_adjusted_{:04d}.wav".format(i))
             
             audio_processor.adjust_audio_speed(seg_output, target_duration, adjusted_path)
             
@@ -623,7 +603,7 @@ def process_dubbing(
                 "text": text,
             })
         
-        log(f"✅ Voz generada: {len(voice_segments)} segmentos")
+        log("✅ Voz generada: {} segmentos".format(len(voice_segments)))
         
         # PASO 6: Mezclar Audio
         log("🎛️ Paso 6/7: Mezclando audio...")
@@ -643,7 +623,7 @@ def process_dubbing(
         # PASO 7: Generar Video Final
         log("🎬 Paso 7/7: Generando video final...")
         input_basename = Path(input_video).stem
-        output_filename = f"{input_basename}_dubbed_{tgt}_{timestamp}.mp4"
+        output_filename = "{}_dubbed_{}_{}.mp4".format(input_basename, tgt, timestamp)
         output_path = os.path.join(OUTPUT_DIR, output_filename)
         
         video_processor.replace_audio(
@@ -653,27 +633,28 @@ def process_dubbing(
             quality=output_quality
         )
         
-        log(f"🎉 ¡Doblaje completado! Video guardado: {output_path}")
+        log("🎉 ¡Doblaje completado! Video guardado: {}".format(output_path))
         
-        summary = f"""
+        summary = """
 ## ✅ Doblaje Completado
 
-**Idioma origen:** {detected_language}  
-**Idioma destino:** {tgt}  
-**Voz:** {voice_id}  
-**Estilo:** {dubbing_style}  
-**Segmentos:** {len(voice_segments)}  
-**Archivo:** {output_filename}
+**Idioma origen:** {}  
+**Idioma destino:** {}  
+**Voz:** {}  
+**Estilo:** {}  
+**Segmentos:** {}  
+**Archivo:** {}
 
 ### Transcripción (primeros 5 segmentos):
-"""
+""".format(detected_language, tgt, voice_id, dubbing_style, len(voice_segments), output_filename)
+        
         for seg in translated_segments[:5]:
-            summary += f"\n[{seg['start']:.1f}s]: {seg['text']}"
+            summary += "\n[{:.1f}s]: {}".format(seg['start'], seg['text'])
         
         return output_path, final_audio_path, summary
         
     except Exception as e:
-        error_msg = f"❌ Error:\n```\n{traceback.format_exc()}\n```"
+        error_msg = "❌ Error:\n```\n{}\n```".format(traceback.format_exc())
         print(error_msg)
         return None, None, error_msg
 
@@ -697,10 +678,10 @@ def preview_voice(voice_id, dubbing_style, rhythm, custom_pitch, custom_volume):
     
     final_rate = style["rate"] + rhythm_preset["modifier"]
     final_rate = max(-50, min(50, final_rate))
-    rate_str = f"{'+' if final_rate >= 0 else ''}{final_rate}%"
+    rate_str = "{:+d}%".format(final_rate)
     
-    pitch_str = f"{'+' if custom_pitch >= 0 else ''}{custom_pitch}Hz"
-    volume_str = f"{'+' if custom_volume >= 0 else ''}{custom_volume}%"
+    pitch_str = "{:+d}Hz".format(custom_pitch)
+    volume_str = "{:+d}%".format(custom_volume)
     
     output_path = os.path.join(TEMP_DIR, "preview.wav")
     
@@ -716,7 +697,7 @@ def preview_voice(voice_id, dubbing_style, rhythm, custom_pitch, custom_volume):
         )
         return output_path
     except Exception as e:
-        print(f"Error en preview: {e}")
+        print("Error en preview: {}".format(e))
         return None
 
 # ============================================================
@@ -855,6 +836,9 @@ if __name__ == "__main__":
             print("❌ No se pudo instalar FFmpeg. Instálalo manualmente:")
             print("   conda install -c conda-forge ffmpeg")
             sys.exit(1)
+    
+    print("\n🚀 Iniciando servidor Gradio...")
+    print("📡 Generando enlace público...\n")
     
     app = create_interface()
     
