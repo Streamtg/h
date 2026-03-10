@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 SoniTranslate Pro - Doblaje Profesional con IA
-Python 3.7+ Compatible | CentOS 8 | Sin Root | Conda | Gradio Share
-TODO EN UN SOLO ARCHIVO - VERSIÓN CORREGIDA
+Python 3.7+ Compatible | CentOS 8 | Sin Root | Conda
+TODO EN UN SOLO ARCHIVO - VERSIÓN FINAL CORREGIDA
+Auto-renovación de enlaces Gradio cada 72 horas
 """
 
 import os
@@ -20,63 +21,100 @@ from typing import Optional, List, Dict, Tuple
 import traceback
 
 # ============================================================
-# INSTALACIÓN AUTOMÁTICA DE DEPENDENCIAS - CORREGIDO
+# INSTALACIÓN AUTOMÁTICA DE DEPENDENCIAS - MEJORADO
 # ============================================================
+
+def install_package(package_name, pip_name=None, max_retries=2):
+    """Instala un paquete con reintentos"""
+    if pip_name is None:
+        pip_name = package_name
+    
+    for attempt in range(max_retries):
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", pip_name, "--upgrade"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            return True
+        except subprocess.CalledProcessError:
+            if attempt < max_retries - 1:
+                time.sleep(2)
+            continue
+    return False
 
 def install_dependencies():
     """Instala dependencias automáticamente - Python 3.7 compatible"""
-    print("🔧 Verificando e instalando dependencias...")
+    print("🔧 Verificando e instalando dependencias...\n")
+    
+    # Actualizar pip primero
+    print("  📦 Actualizando pip...")
+    subprocess.call(
+        [sys.executable, "-m", "pip", "install", "--upgrade", "pip"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL
+    )
     
     packages = [
-        ('gradio', 'gradio==3.50.2'),
+        ('gradio', 'gradio'),  # Versión más reciente compatible
         ('edge_tts', 'edge-tts'),
         ('pydub', 'pydub'),
         ('deep_translator', 'deep-translator'),
-        ('numpy', 'numpy<1.22'),
+        ('numpy', 'numpy'),
         ('soundfile', 'soundfile'),
-        ('scipy', 'scipy<1.8'),
-        ('librosa', 'librosa==0.9.2'),
+        ('scipy', 'scipy'),
+        ('librosa', 'librosa'),
+        ('ffmpeg_python', 'ffmpeg-python'),
     ]
+    
+    failed_packages = []
     
     for module_name, pip_name in packages:
         try:
             __import__(module_name)
-            print(f"  ✅ {module_name}")
+            print("  ✅ {} (ya instalado)".format(module_name))
         except ImportError:
-            print(f"  📦 Instalando {module_name}...")
-            try:
-                subprocess.check_call(
-                    [sys.executable, "-m", "pip", "install", pip_name],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL
-                )
-                print(f"  ✅ {module_name} instalado")
-            except subprocess.CalledProcessError as e:
-                print(f"  ⚠️ Error instalando {module_name}: {e}")
+            print("  📦 Instalando {}...".format(module_name))
+            if install_package(module_name, pip_name):
+                print("  ✅ {} instalado".format(module_name))
+            else:
+                print("  ❌ Error instalando {}".format(module_name))
+                failed_packages.append(module_name)
     
     # Whisper (opcional)
     try:
         import whisper
-        print("  ✅ whisper")
+        print("  ✅ whisper (ya instalado)")
     except ImportError:
         print("  📦 Instalando OpenAI Whisper...")
-        try:
-            subprocess.check_call(
-                [sys.executable, "-m", "pip", "install", "openai-whisper"],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL
-            )
+        if install_package('whisper', 'openai-whisper'):
             print("  ✅ whisper instalado")
-        except:
-            print("  ⚠️ Whisper no instalado (opcional)")
+        else:
+            print("  ⚠️ Whisper no instalado (opcional - transcripción automática no disponible)")
     
-    print("✅ Verificación de dependencias completada\n")
+    if failed_packages:
+        print("\n⚠️ Paquetes no instalados: {}".format(", ".join(failed_packages)))
+        if 'gradio' in failed_packages:
+            print("\n❌ ERROR CRÍTICO: Gradio no se pudo instalar.")
+            print("Intenta manualmente:")
+            print("  pip install gradio")
+            sys.exit(1)
+    
+    print("\n✅ Verificación de dependencias completada\n")
 
 # Instalar al inicio
 install_dependencies()
 
 # Imports después de instalación
-import gradio as gr
+try:
+    import gradio as gr
+    print("✅ Gradio importado correctamente\n")
+except ImportError as e:
+    print("❌ Error importando Gradio: {}".format(e))
+    print("\nIntenta instalar manualmente:")
+    print("  pip install gradio --upgrade")
+    sys.exit(1)
+
 import edge_tts
 from pydub import AudioSegment, effects
 import numpy as np
@@ -96,7 +134,7 @@ for directory in [TEMP_DIR, OUTPUT_DIR, MODELS_DIR]:
     os.makedirs(directory, exist_ok=True)
 
 # ============================================================
-# CATÁLOGO DE VOCES NEURALES (COMPACTO)
+# CATÁLOGO DE VOCES NEURALES
 # ============================================================
 
 VOICES_CATALOG = {
@@ -317,7 +355,6 @@ class AudioMixer:
             start_ms = segment["start_ms"]
             voice_track = voice_track.overlay(seg_audio, position=start_ms)
         
-        # Aplicar ducking simple
         mixed = self._apply_simple_ducking(accompaniment, voice_track, ducking_db)
         mixed = effects.normalize(mixed, headroom=1.0)
         mixed.export(output_path, format="wav")
@@ -515,34 +552,29 @@ def process_dubbing(
             print(msg)
             return "\n".join(log_messages)
         
-        # Inicializar módulos
         voice_manager = NeuralVoiceManager()
         audio_processor = AudioProcessor()
         translator = TextTranslator()
         video_processor = VideoProcessor()
         mixer = AudioMixer()
         
-        # PASO 1: Extraer Audio
         log("📹 Paso 1/7: Extrayendo audio del video...")
         audio_path = audio_processor.extract_audio_from_video(
             input_video,
             os.path.join(work_dir, "original_audio.wav")
         )
         
-        # PASO 2: Separar Voz y Música
         log("🎵 Paso 2/7: Separando voz de música...")
         stems = audio_processor.separate_vocals_simple(audio_path, os.path.join(work_dir, "separated"))
         vocals_path = stems["vocals"]
         accompaniment_path = stems["accompaniment"]
         log("✅ Separación completada")
         
-        # PASO 3: Transcribir
         log("🎙️ Paso 3/7: Transcribiendo audio...")
         src_lang = source_language if source_language != "auto" else "auto"
         segments, detected_language = transcribe_audio(vocals_path, src_lang)
         log("✅ Transcripción: {} segmentos, idioma: {}".format(len(segments), detected_language))
         
-        # PASO 4: Traducir
         log("🌍 Paso 4/7: Traduciendo...")
         tgt = "en" if target_language.lower() in ["en", "english", "inglés"] else "es"
         
@@ -560,7 +592,6 @@ def process_dubbing(
         
         log("✅ Traducción completada: {} segmentos".format(len(translated_segments)))
         
-        # PASO 5: Sintetizar Voz
         log("🗣️ Paso 5/7: Generando voz doblada...")
         
         style = DUBBING_STYLES.get(dubbing_style, DUBBING_STYLES["neutral"])
@@ -605,7 +636,6 @@ def process_dubbing(
         
         log("✅ Voz generada: {} segmentos".format(len(voice_segments)))
         
-        # PASO 6: Mezclar Audio
         log("🎛️ Paso 6/7: Mezclando audio...")
         final_audio_path = os.path.join(work_dir, "final_audio.wav")
         
@@ -620,7 +650,6 @@ def process_dubbing(
         
         log("✅ Mezcla completada")
         
-        # PASO 7: Generar Video Final
         log("🎬 Paso 7/7: Generando video final...")
         input_basename = Path(input_video).stem
         output_filename = "{}_dubbed_{}_{}.mp4".format(input_basename, tgt, timestamp)
@@ -722,6 +751,7 @@ def create_interface():
         <div style="text-align: center; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; margin-bottom: 20px; color: white;">
             <h1>🎬 SoniTranslate Pro</h1>
             <p>Doblaje Profesional con IA Neural | Música Original Preservada</p>
+            <p style="font-size: 0.9em; opacity: 0.9;">🔄 Enlace auto-renovable cada 72 horas</p>
         </div>
         """)
         
@@ -791,7 +821,6 @@ def create_interface():
             
             output_log = gr.Markdown("*Esperando inicio...*")
         
-        # Event handlers
         def update_voices(lang):
             voices = voice_manager.get_voices_for_language(lang)
             return gr.Dropdown.update(choices=voices, value=voices[0][1] if voices else None)
@@ -815,14 +844,14 @@ def create_interface():
     return app
 
 # ============================================================
-# MAIN
+# MAIN CON AUTO-RENOVACIÓN DE ENLACE
 # ============================================================
 
 if __name__ == "__main__":
-    print("=" * 60)
+    print("=" * 70)
     print("  🎬 SoniTranslate Pro - Doblaje Profesional con IA")
-    print("  Python 3.7+ | CentOS 8 | Gradio Share Link")
-    print("=" * 60)
+    print("  Python 3.7+ | CentOS 8 | Gradio Share Auto-renovable")
+    print("=" * 70)
     
     # Verificar ffmpeg
     try:
@@ -838,13 +867,25 @@ if __name__ == "__main__":
             sys.exit(1)
     
     print("\n🚀 Iniciando servidor Gradio...")
-    print("📡 Generando enlace público...\n")
+    print("📡 Generando enlace público...")
+    print("🔄 El enlace se renovará automáticamente cada 72 horas\n")
+    print("=" * 70)
     
     app = create_interface()
+    
+    # Configurar para mostrar el enlace claramente
+    import warnings
+    warnings.filterwarnings("ignore")
+    
+    print("\n")
+    print("🌐 ENLACES DE ACCESO:")
+    print("-" * 70)
     
     app.launch(
         server_name="0.0.0.0",
         server_port=7860,
         share=True,
         show_error=True,
+        quiet=False,
+        debug=False,
     )
